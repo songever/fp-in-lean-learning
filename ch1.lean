@@ -179,5 +179,70 @@ def howManyDogs (pets: List PetName) : Nat :=
   | [] => 0
   | Sum.inl _ :: morePets => howManyDogs morePets + 1
   | Sum.inr _ :: morePets => howManyDogs morePets
-
 #eval howManyDogs animals
+
+-- Unit as placeholder of ann(annotation)
+inductive ArithExpr (ann : Type) : Type where
+  | int : ann → Int → ArithExpr ann
+  | plus : ann → ArithExpr ann → ArithExpr ann → ArithExpr ann
+  | minus : ann → ArithExpr ann → ArithExpr ann → ArithExpr ann
+  | times : ann → ArithExpr ann → ArithExpr ann → ArithExpr ann
+
+-- 1.7. Additional Conveniences
+def drop : Nat → List α → List α
+  | Nat.zero, xs => xs
+  | _, [] => []
+  | Nat.succ n, x::xs => drop n xs
+def fromOption (default: α ) : Option α → α
+  | none => default
+  | some x => x
+#eval (some "salmonberry").getD ""
+#eval none.getD ""
+
+def even2 : Nat → Bool
+  | 0 => true
+  | n + 1 => not (even n)
+def halve : Nat → Nat
+  | 0 => 0
+  | 1 => 0
+  | n + 2 => halve n + 1
+
+#check fun x => x + 1
+#check fun (x: Int) => x + 1
+#check fun {α: Type} (x: α) => x
+#check fun
+  | 0 => none
+  | n + 1 => some n
+
+def double : Nat → Nat := fun
+  | 0 => 0
+  | k + 1 => double k + 2
+#eval (· * 2) 5
+
+def Nat.double (x: Nat) : Nat := x + x
+#eval (4: Nat).double
+namespace NewNamespace
+def triple (x : Nat) : Nat := 3 * x
+def quadruple (x : Nat) : Nat := 2 * x + 2 * x
+end NewNamespace
+#check NewNamespace.triple
+open NewNamespace in
+#check quadruple
+def timesTwelve (x : Nat) :=
+  open NewNamespace in
+  quadruple (triple x)
+
+inductive Inline : Type where
+  | Inline.lineBreak
+  | string : String → Inline
+  | emph : Inline → Inline
+  | strong : Inline → Inline
+def Inline.string? (inline : Inline) : Option String :=
+  if let Inline.string s := inline then
+    some s
+  else none
+
+#eval (⟨1 ,2⟩ : Point )
+
+#eval s!"three fives is {NewNamespace.triple 5}"
+#check s!"three fives is {NewNamespace.triple 5}"
