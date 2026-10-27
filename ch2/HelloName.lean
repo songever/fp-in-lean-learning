@@ -1,3 +1,4 @@
+-- 2.1 Ruuning a Program
 def main : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
