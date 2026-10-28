@@ -8,3 +8,5 @@ def main : IO Unit := do
   let name := input.dropEndWhile Char.isWhitespace
 
   stdout.putStrLn s!"Hello, {name}!"
+
+#eval "Hello...   ".dropEndWhile (fun c => not (c.isAlphanum))
