@@ -1,18 +1,18 @@
 def bufsize : USize := 20 * 1024
+-- When Lean is compiling a do block, expressions that consist of a left arrow
+-- immediately under parentheses are lifted to the nearest enclosing do, and
+-- their results are bound to a unique name.
 partial def dump (stream : IO.FS.Stream) : IO Unit := do
   let buf ← stream.read bufsize
   if buf.isEmpty then
     pure ()
   else
-    let stdout ← IO.getStdout
-    stdout.write buf
+    (← IO.getStdout).write buf
     dump stream
 
 def fileStream (filename: System.FilePath) : IO (Option IO.FS.Stream) := do
-  let fileExists ← filename.pathExists
-  if not fileExists then
-    let stderr ← IO.getStderr
-    stderr.putStrLn s!"File not found: {filename}"
+  if not (← filename.pathExists) then
+    (← IO.getStderr).putStrLn s!"File not found: {filename}"
     pure none
   else
     let handle ← IO.FS.Handle.mk filename IO.FS.Mode.read
