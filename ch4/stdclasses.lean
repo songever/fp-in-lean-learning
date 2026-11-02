@@ -41,3 +41,44 @@ def hashBinTree [Hashable α] : BinTree α → UInt64
   | BinTree.branch l x r => mixHash 1 (mixHash (hashBinTree l) (mixHash (hash x) (hashBinTree r)))
 instance [Hashable α] : Hashable (BinTree α) where
   hash := hashBinTree
+
+-- Deriving Standard Class
+deriving instance BEq, Hashable for Pos
+deriving instance BEq, Hashable, Repr for NonEmptyList
+
+-- Appending
+-- class HAppend (α : Type) (β : Type) (γ : outParam Type) where
+--   hAppend : α → β → γ
+instance : Append (NonEmptyList α) where
+  append xs ys :=
+    { head := xs.head, tail := xs.tail ++ ys.head :: ys.tail}
+#eval idahoSpiders ++ idahoSpiders
+
+instance : HAppend (NonEmptyList α) (List α) (NonEmptyList α) where
+  hAppend xs ys :=
+    { head := xs.head, tail := xs.tail ++ ys}
+#eval idahoSpiders ++ ["Trapdoor Spider"]
+
+instance : HAppend (List α) (NonEmptyList α) (NonEmptyList α) where
+  hAppend xs ys := match xs with
+    | [] => ys
+    | x :: xs => { head := x, tail := xs ++ ys.head :: ys.tail}
+#eval ["Trapdoor Spider"] ++ idahoSpiders
+
+-- Functors
+#eval Functor.map (· + 5) [1,2,3]
+#eval Functor.map toString (some (List.cons 5 List.nil))
+#eval Functor.map List.reverse [[1,2,3],[4,5,6]]
+#eval (· + 5) <$> [1,2,3]
+#eval toString <$> (some (List.cons 5 List.nil))
+#eval List.reverse <$> [[1,2,3],[4,5,6]]
+
+instance : Functor NonEmptyList where
+  map f xs := {head := f xs.head, tail := f <$> xs.tail}
+instance : Functor PPoint where
+  map f p := { x := f p.x, y := f p.y }
+
+-- class Functor (f : Type → Type) where
+-- map : {α β : Type} → (α → β) → f α → f β
+-- mapConst {α β : Type} (x : α) (coll : f β) : f α :=
+--   map (fun _ => x) coll
