@@ -1,5 +1,6 @@
 import pos
 import indexing
+import Lean
 
 -- 4.5 Stanard Classes
 
@@ -119,6 +120,10 @@ def perhapsPerhapsPerhaps : Option (Option (Option String)) := "Please don't tel
 
 -- Coercions are only activeated automatically when Lean encouters a mismatch between
 -- an inferred type and a type that is imposed from the rest of the program.
+
+-- Natural number literals are overloaded with the OfNat type class. Because coercions
+-- fire in cases where types don't match, rather than in cases of missing instances,
+-- missing OfNat instance for a type does not cause a coercion from Nat to be applied:
 -- def perhapsPerhapsPerhapsNat : Option (Option (Option Nat)) := 392
 def perhapsPerhapsPerhapsNat : Option (Option (Option Nat)) := (392: Nat)
 -- manually coercion
@@ -170,3 +175,70 @@ instance : CoeSort Bool Prop where
 -- Coercing to Functions
 -- class CoeFun (α : Type) (makeFunctionType : outParam (α → Type)) where
 --   coe : (x : α) → makeFunctionType x
+structure Adder where
+  howMuch : Nat
+def add5 : Adder := ⟨5⟩
+instance : CoeFun Adder (fun _ => Nat → Nat) where
+  coe a := (· + a.howMuch)
+#eval add5 3
+
+inductive JSON where
+  | true : JSON
+  | false : JSON
+  | null : JSON
+  | string : String → JSON
+  | number : Float → JSON
+  | object : List (String × JSON) → JSON
+  | array : List JSON → JSON
+deriving Repr
+
+structure Serializer where
+  Contents : Type
+  serializer : Contents → JSON
+def Str : Serializer := {
+  Contents := String,
+  serializer := JSON.string
+}
+
+instance : CoeFun Serializer (fun s => s.Contents → JSON) where
+  coe s := s.serializer
+
+def buildResponse (title : String) (R : Serializer) (record : R.Contents) : JSON :=
+  JSON.object [
+    ("title", JSON.string title),
+    ("status", JSON.number 200),
+    ("record", R record)
+  ]
+#eval buildResponse "Functional Programming in Lean" Str "Programming is fun!"
+-- Aside: JSON as a String
+#eval (5 : Float).toString
+def dropDecimals  (numString : String) : String :=
+  if numString.contains '.' then
+    let noTrailingZeros := numString.dropEndWhile (· == '0')
+    (noTrailingZeros.dropEndWhile (· == '.')).toString
+  else numString
+#eval dropDecimals (5 : Float).toString
+#eval dropDecimals (5.2 : Float).toString
+
+def String.separate (sep : String) (strings : List String) : String :=
+  match strings with
+  | [] => ""
+  | x :: xs => String.join (x :: xs.map (sep ++ ·))
+#eval ", ".separate ["1", "3"]
+#eval ", ".separate ["1"]
+#eval ", ".separate []
+
+partial def JSON.asString (val : JSON) : String :=
+  match val with
+  | true => "true"
+  | false => "false"
+  | null => "null"
+  | string s => "\"" ++ Lean.Json.escape s ++ "\""
+  | number n => dropDecimals n.toString
+  | object members =>
+    let memberToString mem :=
+      "\"" ++ Lean.Json.escape mem.fst ++ "\": " ++ asString mem.snd
+    "{" ++ ", ".separate (members.map memberToString) ++ "}"
+  | array elements =>
+    "[" ++ ", ".separate (elements.map asString) ++ "]"
+#eval (buildResponse "Functional Programming in Lean" Str "Programming is fun!").asString
