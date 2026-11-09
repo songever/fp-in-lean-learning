@@ -242,3 +242,42 @@ partial def JSON.asString (val : JSON) : String :=
   | array elements =>
     "[" ++ ", ".separate (elements.map asString) ++ "]"
 #eval (buildResponse "Functional Programming in Lean" Str "Programming is fun!").asString
+
+-- 4.7. Additional Conveniences
+-- Behind the scenes, type classes are structure types and
+-- instances are values of these types.
+
+-- three syntaxes to define value of structure types:
+structure Tree : Type where
+  latinName : String
+  commonNames : List String
+
+def oak : Tree :=
+  ⟨"Quercus robur", ["common oak", "European oak"]⟩
+
+def birch : Tree :=
+  { latinName := "Betula pendula",
+    commonNames := ["silver birch", "warty birch"]
+  }
+
+def sloe : Tree where
+  latinName := "Prunus spinosa"
+  commonNames := ["sloe", "blackthorn"]
+-- three syntaxes to define type class instances
+class Display (α : Type) where
+  displayName : α → String
+
+instance : Display Tree := ⟨Tree.latinName⟩
+instance : Display Tree :=
+  { displayName := Tree.latinName }
+instance : Display Tree where
+  displayName t := t.latinName
+
+-- Lean supports the explicit indication of examples in a source file.
+-- An example is like a definition without a name.
+example : NonEmptyList String :=
+  { head := "Sparrow",
+    tail := ["Duck", "Swan", "Magpie", "Eurasian coot", "Crow"]
+  }
+example (n : Nat) (k : Nat) : Bool :=
+  n + k == k + n
