@@ -42,7 +42,7 @@ infixl:55 " ~~> " => andThen
 def number (t : BinTree α) : BinTree (Nat × α) :=
   let State := State Nat (BinTree (Nat × α))
   let rec helper : BinTree α → State
-    | BinTree.leaf => (n, BinTree.leaf)
+    | BinTree.leaf => ok BinTree.leaf
     | BinTree.branch l x r =>
       helper l ~~> fun numl =>
       get ~~> fun n =>
