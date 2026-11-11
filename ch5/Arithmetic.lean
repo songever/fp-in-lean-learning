@@ -51,9 +51,9 @@ inductive Prim (special : Type) where
   | minus
   | times
   | other : special → Prim special
+
 inductive CanFail where
   | div
-
 def divOption : CanFail → Int → Int → Option Int
   | CanFail.div, x, y => if y == 0 then none else pure (x / y)
 def divExcept : CanFail → Int → Int → Except String Int
@@ -164,3 +164,49 @@ open Expr Prim NeedsSearch
   (prim (other choose) (const (-5)) (const 5)) (const 5)))).takeAll
 
 -- Custom Environments
+-- evaluator can be made user-extensible by allowing strings to be used as
+-- operators, and then providing a mapping from strings to a function that
+-- implements them.
+
+/-!
+- Constants `n` evaluate to constant functions `fun _ => n`.
+- Arithmetic operators evaluate to functions that pass their arguments
+  through, so `f + g` evaluates to `fun e => f e + g e`.
+- Custom operators evaluate to the result of applying the custom
+  operator to the arguments, so `f OP g` evaluates to:
+
+      fun e =>
+        if e contains (OP, h) then
+          h (f e) (g e)
+        else
+          0
+
+  Here, `0` serves as a fallback in case an unknown operator is applied.
+-/
+
+-- 'rho' indicate the environments
+def Reader (ρ : Type) (α : Type) : Type := ρ → α
+def read : Reader ρ ρ := fun env => env
+
+def Reader.pure (x : α) : Reader ρ α := fun _ => x
+def Reader.bind {ρ : Type} {α : Type} {β : Type}
+  (result : ρ → α) (next : α → ρ → β) : ρ → β :=
+  fun env => next (result env) env
+instance : Monad (Reader ρ) where
+  pure x := fun _ => x
+  bind x f := fun env => f (x env) env
+
+-- custom environment type
+abbrev Env : Type := List (String × (Int → Int → Int))
+def exampleEnv : Env := [("max", max), ("mod", (· % ·))]
+-- List.lookup on map as a list of pairs
+def applyPrimReader (op : String) (x : Int) (y : Int) : Reader Env Int :=
+  read >>= fun env =>
+  match env.lookup op with
+  | none => pure 0
+  | some f => pure (f x y)
+open Expr Prim in
+#eval evaluateM' applyPrimReader (prim (other "max")
+  (prim plus (const 5) (const 4))
+  (prim times (const 3) (const 2))
+) exampleEnv
