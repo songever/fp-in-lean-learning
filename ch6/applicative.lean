@@ -1,5 +1,6 @@
 import indexing
 import Classes
+import Many
 
 -- 6.2. Applicative Functors
 instance : Applicative Option where
@@ -105,3 +106,109 @@ def checkInput (year : Nat) (input : RawInput) : Validate (Field × String) (Che
 #eval checkInput 2023 {name := "David", birthYear := "1984"}
 #eval checkInput 2023 {name := "", birthYear := "2045"}
 #eval checkInput 2023 {name := "David", birthYear := "syzygy"}
+
+-- 6.4. Alternatives
+-- Recovery from Failure
+abbrev NonEmptyString := {s : String // s ≠ ""}
+inductive LegacyCheckedInput where
+  | humanBefore1970 :
+    (birthYear : {y : Nat // y > 999 ∧ y < 1970}) →
+    String → LegacyCheckedInput
+  | humanAfter1970 :
+    (birthYear : {y : Nat // y > 1970}) →
+    NonEmptyString → LegacyCheckedInput
+  | company :
+    NonEmptyString →
+    LegacyCheckedInput
+deriving Repr
+
+-- class SeqRight (f : Type → Type) where
+--   seqRight : f α → (Unit → f β) → f β
+-- abbreviation: seqRight === (*>)
+def checkThat (condition : Bool) (field : Field) (msg : String)
+  : Validate (Field × String) Unit :=
+  if condition then pure () else reportError field msg
+def checkcompany (input : RawInput) : Validate (Field × String) LegacyCheckedInput :=
+  checkThat (input.birthYear == "FIRM") "birth year" "FIRM if a company" *>
+  .company <$> checkName input.name
+
+def checkSubtype {α : Type} (v : α) (p : α → Prop) [Decidable (p v)] (err : ε)
+  : Validate ε {x : α // p x} :=
+  if h : p v then .ok ⟨v, h⟩ else .errors {head := err, tail := []}
+
+def checkHumanBefore1970 (input : RawInput) : Validate (Field × String) LegacyCheckedInput :=
+  (checkYearIsNat input.birthYear).andThen fun y =>
+    .humanBefore1970 <$>
+      checkSubtype y (fun x => x > 999 ∧ x < 1970) ("birth year", "less than 1970") <*>
+      pure input.name
+
+def checkHumanAfter1970 (input : RawInput) : Validate (Field × String) LegacyCheckedInput :=
+  (checkYearIsNat input.birthYear).andThen fun y =>
+    .humanAfter1970 <$>
+      checkSubtype y (· > 1970) ("birth year", "greater than 1970") <*>
+      checkName input.name
+
+-- class OrElse (α : Type) where
+--   orElse : α → (Unit → α) → α
+def Validate.orElse (a : Validate ε α) (b : Unit → Validate ε α) : Validate ε α :=
+  match a with
+  | .ok x => .ok x
+  | .errors e =>
+    match b () with
+    | .ok x => .ok x
+    | .errors e' => .errors (e ++ e')
+instance : OrElse (Validate ε α) where
+  orElse := Validate.orElse
+def checkLegacyInput (input : RawInput) : Validate (Field × String) LegacyCheckedInput :=
+  checkcompany input <|> checkHumanBefore1970 input <|> checkHumanAfter1970 input
+#eval checkLegacyInput ⟨"Johnny's Troll Groomers", "FIRM"⟩
+#eval checkLegacyInput ⟨"Johnny", "1963"⟩
+#eval checkLegacyInput ⟨"", "1963"⟩
+#eval checkLegacyInput ⟨"", "1970"⟩
+
+-- The Alternative Class
+-- class Alternative (f : Type → Type) extends Applicative f where
+--   failure : f α
+--   orElse : f α → (Unit → f α) → f α
+
+-- implementors of Alternative get OrElse instances for free:
+instance [Alternative f] : OrElse (f α) where
+  orElse := Alternative.orElse
+instance : Alternative Option where
+  failure := none
+  orElse
+    | some x, _ => some x
+    | none, x => x ()
+
+-- Many can represent the results of a searching process
+-- Many.bind pipe all results to the next function and union all the outputs
+-- Many.orElse should also represent the enumeration on all results
+-- the implementation follows the general structure of the Many.union:
+def Many.orElse : Many α → (Unit → Many α) → Many α
+  | .none, ys => ys ()
+  | .more x xs, ys => .more x (fun () => orElse (xs ()) ys)
+instance : Alternative Many where
+  failure := .none
+  orElse := Many.orElse
+
+-- see More Applicative operations:
+-- def guard [Alternative f] (p : Prop) [Decidable p] : f Unit :=
+--   if p then
+--     pure ()
+--   else failure
+-- It is very useful in monadic programs to terminate the execution early.
+def Many.countdown : Nat → Many Nat
+  | 0 => .none
+  | n + 1 => .more n (fun () => countdown n)
+def evenDivisors (n : Nat) : Many Nat := do
+  -- this line give the count decreasingly
+  let k ← Many.countdown (n + 1)
+  -- guard result:
+  -- the pure () on bind continue the process,
+  -- while the failure(:= .none) break the pipe
+  guard (k % 2 = 0)
+  guard (n % k = 0)
+  -- all the final results on every count, no matter the pure k returned below
+  -- or the .none returned above, will be unioned at last by the Many.bind.
+  pure k
+#eval (evenDivisors 20).takeAll
