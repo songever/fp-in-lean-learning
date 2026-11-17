@@ -1,3 +1,4 @@
+-- 6.1. Structures and Inheritance
 structure MythicalCreature where
   large: Bool
 deriving Repr
