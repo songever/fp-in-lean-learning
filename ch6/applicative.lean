@@ -107,6 +107,26 @@ def checkInput (year : Nat) (input : RawInput) : Validate (Field × String) (Che
 #eval checkInput 2023 {name := "", birthYear := "2045"}
 #eval checkInput 2023 {name := "David", birthYear := "syzygy"}
 
+-- 6.3. The Applicative Contract
+-- For learning the Contract kept on Applicative and the relationship with Functors
+-- and Monads, see the following site:
+-- https://leanprover.github.io/functional_programming_in_lean/functor-applicative-monad/applicative-contract.html
+
+-- To show why `Validate.andThen` should not be used to implement `bind` in a `Monad`:
+def notFun : Validate String (Nat → String) :=
+  .errors {head := "First error", tail := []}
+def notArg : Validate String Nat :=
+  .errors {head := "Second error", tail := []}
+#eval notFun <*> notArg
+
+def seq_bind (f : Validate ε (α → β)) (x : Unit → Validate ε α) : Validate ε β :=
+  f.andThen fun g =>
+  (x ()).andThen fun y =>
+  pure (g y)
+#eval seq_bind notFun (fun () => notArg)
+-- the seq_bind implemented by the Validate.andThen as monad.bind, doesn't behave
+-- the same as Validate.seq itself
+
 -- 6.4. Alternatives
 -- Recovery from Failure
 abbrev NonEmptyString := {s : String // s ≠ ""}
