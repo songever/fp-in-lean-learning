@@ -111,3 +111,61 @@ def countLetters2 (str : String) : StateT LetterCounts (Except Err) Unit :=
 --   modify : (σ → α × σ) → m α
 -- PUnit is a version of the Unit type that is universe-polymorphic to allow it to be
 -- in Type u instead of Type.
+
+
+-- 7.3. Ordering Monad Transformers
+
+def countLetters [Monad m] [MonadState LetterCounts m] [MonadExcept Err m] (str : String) : m Unit :=
+  let rec loop (chars : List Char) := do
+    match chars with
+    | [] => pure ()
+    | c :: cs =>
+      if c.isAlpha then
+        if vowels.contains c then
+          modify fun st => {st with vowels := st.vowels + 1}
+        else if consonants.contains c then
+          modify fun st => {st with consonants := st.consonants + 1}
+        else  -- modified or non-English letter
+          pure ()
+      else throw (.notALetter c)
+      loop cs
+  loop str.toList
+
+abbrev M1 := StateT LetterCounts (ExceptT Err Id)
+abbrev M2 := ExceptT Err (StateT LetterCounts Id)
+
+-- In the case of M1, the outermost constructor is Except.ok, and
+-- it contains a pair of the unit constructor with the final state.
+#eval countLetters (m := M1) "hello" ⟨0, 0⟩
+-- In the case of M2, the outermost constructor is the pair, which
+-- contains Except.ok applied only to the unit constructor.
+#eval countLetters (m := M2) "hello" ⟨0, 0⟩
+
+-- Only one monad yields a count of vowels and consonants when the
+-- string causes an exception to be thrown:
+#eval countLetters (m := M1) "hello!" ⟨0, 0⟩
+#eval countLetters (m := M2) "hello!" ⟨0, 0⟩
+
+-- another program that compute different answers in M1 and M2:
+def countWithFallback
+  [Monad m] [MonadState LetterCounts m] [MonadExcept Err m]
+  (str : String) : m Unit :=
+  try
+    countLetters str
+  catch _ =>
+    countLetters "Fallback"
+
+-- always success on different results.
+#eval countWithFallback (m := M1) "hello" ⟨0, 0⟩
+#eval countWithFallback (m := M2) "hello" ⟨0, 0⟩
+
+-- Fail with only the letter counts from "Fallback":
+#eval countWithFallback (m := M1) "hello!" ⟨0, 0⟩
+-- Fail with letter counts from both "hello" and "Fallback":
+#eval countWithFallback (m := M2) "hello!" ⟨0, 0⟩
+-- In M1, throwing and exception "rolls back" the state to where
+-- the exception was caught.
+-- M1 : LetterCounts → Except Err (α × LetterCounts)
+-- In M2, modification to the state persist across the throwing
+-- and catching of exceptions.
+-- M1 : LetterCounts → Except Err α × LetterCounts
