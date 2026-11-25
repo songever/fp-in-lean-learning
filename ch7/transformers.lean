@@ -1,3 +1,49 @@
+-- 7.2. A Monad Construction Kit
+
+-- def OptionT (m : Type u → Type v) (α : Type u) : Type v :=
+--   m (Option α)
+def getSomeInput : OptionT IO String := do
+  let input ← (← IO.getStdin).getLine
+  let trimmed := input.trimAscii
+  if trimmed == "" then
+    failure
+  else pure trimmed.copy
+
+structure UserInfo where
+  name : String
+  favoriteBeetle : String
+
+def getUserInfo : OptionT IO UserInfo := do
+  IO.println "What is your name?"
+  let name ← getSomeInput
+  IO.println "What is your favorite species of beetle?"
+  let beetle ← getSomeInput
+  pure ⟨name, beetle⟩
+
+def interact : IO Unit := do
+  match ← getUserInfo with
+  | none => IO.eprintln "Missing info"
+  | some ⟨name, beetle⟩ => IO.println s!"Hello {name}, whose favorite beetle is {beetle}"
+
+-- def OptionT.mk (x : m (Option α)) : OptionT m α := x
+-- def OptionT.run (x : OptionT m α) : m (OptionT α) := x
+instance [Monad m] : Monad (OptionT m) where
+  pure x := OptionT.mk (pure (some x))
+  bind action next := OptionT.mk do
+    match ← action with
+    | none => pure none
+    | some v => next v
+
+instance [Monad m] : Alternative (OptionT m) where
+  failure := OptionT.mk (pure none)
+  orElse x y := OptionT.mk do
+    match ← x with
+    | some result => pure (some result)
+    | none => y ()
+instance [Monad m] : MonadLift m (OptionT m) where
+  monadLift action := OptionT.mk do
+    pure (some (← action))
+
 -- def StateT (σ : Type u) (m : Type u → Type v) (α : Type u) : Type (max u v) :=
 --   σ → m (α × σ)
 instance [Monad m] : Monad (StateT σ m) where
